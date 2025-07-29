@@ -20,6 +20,7 @@
         <java.version>1.8</java.version>
         <hutool.version>5.8.9</hutool.version>
         <mybatis-plus.version>3.4.3</mybatis-plus.version>
+        <!-- 从2.3.0升到 2.3.4 -->
         <rocketmq.version>2.3.0</rocketmq.version>
         <getui.version>1.0.6.0</getui.version>
         <platform.version>2.0.0</platform.version>
