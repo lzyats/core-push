@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.1.1.RELEASE</version>
+        <version>2.7.18</version>
         <relativePath/>
     </parent>
 
@@ -17,22 +17,21 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <java.version>1.8</java.version>
-        <hutool.version>5.8.9</hutool.version>
-        <mybatis-plus.version>3.4.3</mybatis-plus.version>
-        <!-- 从2.3.0升到 2.3.4 -->
-        <rocketmq.version>2.3.0</rocketmq.version>
+        <java.version>17</java.version>
+        <hutool.version>5.8.39</hutool.version>
+        <mybatis-plus.version>3.5.3.1</mybatis-plus.version>
+        <rocketmq.version>2.3.4</rocketmq.version>
         <getui.version>1.0.6.0</getui.version>
         <platform.version>2.0.0</platform.version>
+        <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
     </properties>
 
     <dependencies>
-
         <!-- SpringBoot Web容器 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-            <scope>provided</scope>
+            <scope>provided</scope> <!-- 若当前项目是独立运行的服务，建议改为默认scope(compile) -->
         </dependency>
 
         <!-- mybatis-plus -->
@@ -40,7 +39,7 @@
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-boot-starter</artifactId>
             <version>${mybatis-plus.version}</version>
-            <scope>provided</scope>
+            <scope>provided</scope> <!-- 同理：若直接依赖，建议改为compile -->
         </dependency>
 
         <!-- redis 缓存操作 -->
@@ -55,9 +54,15 @@
             <groupId>org.apache.rocketmq</groupId>
             <artifactId>rocketmq-spring-boot-starter</artifactId>
             <version>${rocketmq.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
-        <!--个推推送 -->
+        <!-- 个推推送 -->
         <dependency>
             <groupId>com.getui.push</groupId>
             <artifactId>restful-sdk</artifactId>
@@ -72,19 +77,28 @@
             <scope>provided</scope>
         </dependency>
 
-        <!--hutool 工具包 -->
+        <!-- hutool 工具包 -->
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
             <version>${hutool.version}</version>
             <scope>provided</scope>
         </dependency>
-        <!-- 常用工具类 end-->
 
-        <!-- lombok可使代码更简洁 -->
+        <!-- lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
+            <version>1.18.24</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Java 17兼容的JAXB API -->
+        <dependency>
+            <groupId>javax.xml.bind</groupId>
+            <artifactId>jaxb-api</artifactId>
+            <version>2.3.1</version>
+            <scope>provided</scope>
         </dependency>
 
     </dependencies>
@@ -95,10 +109,12 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
+                <version>${maven-compiler-plugin.version}</version>
                 <configuration>
-                    <source>${java.version}</source>
+                    <!-- 显式清除source和target，避免继承父工程的默认值 -->
+                    <source>${java.version}</source> <!-- 这里看似重复，但实际是为了覆盖父工程的默认值，后续会被release覆盖 -->
                     <target>${java.version}</target>
+
                 </configuration>
             </plugin>
         </plugins>
@@ -116,7 +132,7 @@
         <repository>
             <id>public</id>
             <name>aliyun nexus</name>
-            <url>http://maven.aliyun.com/nexus/content/groups/public/</url>
+            <url>https://maven.aliyun.com/nexus/content/groups/public/</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
@@ -127,7 +143,7 @@
         <pluginRepository>
             <id>public</id>
             <name>aliyun nexus</name>
-            <url>http://maven.aliyun.com/nexus/content/groups/public/</url>
+            <url>https://maven.aliyun.com/nexus/content/groups/public/</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
@@ -137,10 +153,8 @@
         </pluginRepository>
     </pluginRepositories>
 
-    <!-- omitted xml -->
     <distributionManagement>
         <repository>
-            <!--必须与 settings.xml 的 id 一致-->
             <id>q3z3-boot-tools-maven</id>
             <name>maven</name>
             <url>https://q3z3-maven.pkg.coding.net/repository/boot-tools/maven/</url>
