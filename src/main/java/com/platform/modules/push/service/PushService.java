@@ -1,12 +1,10 @@
 package com.platform.modules.push.service;
 
 import cn.hutool.json.JSONObject;
-import com.platform.modules.push.dto.PushFrom;
-import com.platform.modules.push.dto.PushGroup;
-import com.platform.modules.push.dto.PushSetting;
-import com.platform.modules.push.dto.PushSync;
+import com.platform.modules.push.dto.*;
 import com.platform.modules.push.enums.PushAuditEnum;
 import com.platform.modules.push.enums.PushBadgerEnum;
+import com.platform.modules.push.enums.PushMomentEnum;
 import com.platform.modules.push.enums.PushMsgTypeEnum;
 
 import java.util.List;
@@ -34,6 +32,12 @@ public interface PushService {
     void pushSetting(PushSetting setting, List<Long> receiveList);
 
     /**
+     * 发送设置-在线指定
+     */
+    void pushMoment(PushFrom pushFrom,PushMoment setting, List<Long> receiveList);
+
+
+    /**
      * 发送审核
      */
     void pushAudit(PushAuditEnum pushAudit);
@@ -52,6 +56,10 @@ public interface PushService {
      * 发送消息-同步
      */
     void pushSync(PushFrom pushFrom, PushSync pushSync, String content, PushMsgTypeEnum msgType);
+    /**
+     * 发送朋友圈消息-同步
+     */
+    void pushMomentSync(PushFrom pushFrom, PushMoment pushMoment,List<Long> receiveList,PushMomentEnum msgType);
 
     /**
      * 发送消息-群组
@@ -64,9 +72,19 @@ public interface PushService {
     void pushBadger(Long receiveId, PushBadgerEnum badgerEnum, List<Long> principal);
 
     /**
+     * 发送消息-badger
+     */
+    void pushBadger(List<Long> receiveList, PushBadgerEnum badgerEnum, boolean principal);
+
+    /**
      * 拉取消息
      */
     List<JSONObject> pullMsg(Long userId, String lastId, int limit);
+
+    /**
+     * 拉取朋友圈消息
+     */
+    List<JSONObject> pullMomentMsg(Long userId, String lastId, int limit);
 
     /**
      * 删除消息

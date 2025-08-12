@@ -17,6 +17,10 @@ public enum PushBadgerEnum {
      * 群组
      */
     GROUP("group", "chat:badger:group:{}"),
+    /**
+     * 朋友圈
+     */
+    MOMENT("moment", "chat:badger:moment:{}"),
     ;
 
     @JsonValue

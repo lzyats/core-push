@@ -11,6 +11,13 @@ public class PushConstant {
      */
     public static final String PUSH_MSG = "push:msg:{}";
     /**
+     * 聊天消息:push:moment:{消息id}
+     * 聊天消息:push:moment:123456789
+     */
+    public static final String PUSH_MOMENT_MSG = "push:moment:{}";
+    public static final String PUSH_USER_MOMENT = "push:usermoment:{}:{}";
+    public static final Integer PUSH_MOMENT_TIME = 30;
+    /**
      * 聊天消息时间（天）
      */
     public static final Integer PUSH_TIME = 7;

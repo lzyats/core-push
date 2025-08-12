@@ -14,17 +14,9 @@ import com.platform.common.enums.ChannelEnum;
 import com.platform.common.redis.RedisUtils;
 import com.platform.common.web.vo.LabelVo;
 import com.platform.modules.push.constant.PushConstant;
-import com.platform.modules.push.dto.PushFrom;
-import com.platform.modules.push.dto.PushGroup;
-import com.platform.modules.push.dto.PushSetting;
-import com.platform.modules.push.dto.PushSync;
-import com.platform.modules.push.enums.PushAuditEnum;
-import com.platform.modules.push.enums.PushBadgerEnum;
-import com.platform.modules.push.enums.PushMsgTypeEnum;
-import com.platform.modules.push.enums.PushSettingEnum;
-import com.platform.modules.push.message.PushMessageMsg;
-import com.platform.modules.push.message.PushMessageSetting;
-import com.platform.modules.push.message.PushMessageSync;
+import com.platform.modules.push.dto.*;
+import com.platform.modules.push.enums.*;
+import com.platform.modules.push.message.*;
 import com.platform.modules.push.service.PushProvider;
 import com.platform.modules.push.service.PushService;
 import com.platform.modules.push.utils.RedisOther;
@@ -83,6 +75,15 @@ public class PushServiceImpl implements PushService {
     }
 
     @Override
+    public void pushMoment(PushFrom pushFrom,PushMoment setting, List<Long> receiveList) {
+        // 消息组装
+        PushMessageMoment messageSetting = new PushMessageMoment(pushFrom,setting,PushMomentEnum.MOMENT);
+        String message = JSONUtil.toJsonStr(messageSetting);
+        // 发送消息
+        this.sendMsg(receiveList, message, ChannelEnum.MSG);
+    }
+
+    @Override
     public void pushAudit(PushAuditEnum pushAudit) {
         // 组装对象
         LabelVo labelVo = new LabelVo()
@@ -124,6 +125,22 @@ public class PushServiceImpl implements PushService {
     }
 
     @Override
+    public void pushMomentSync(PushFrom pushFrom, PushMoment pushMoment, List<Long> receiveList,PushMomentEnum msgType) {
+        // 消息组装
+        PushMomentSync messageSync = new PushMomentSync(pushFrom, pushMoment,msgType);
+        // 格式消息
+        String message = JSONUtil.toJsonStr(messageSync);
+        // 离线消息
+        //List<Long> receiveList = Arrays.asList(pushFrom.getUserId());
+        // 异步执行
+        ThreadUtil.execAsync(() -> {
+            redisOther.pushMomentMsg(pushFrom.getSyncId(),  receiveList, message, _getDateList());
+        });
+        // 发送消息
+        this.sendMsg(receiveList, message, ChannelEnum.MSG);
+    }
+
+    @Override
     public void pushGroup(PushFrom pushFrom, PushGroup pushGroup, List<Long> receiveList, String
             content, PushMsgTypeEnum msgType) {
         // 发送消息
@@ -153,6 +170,7 @@ public class PushServiceImpl implements PushService {
         this.sendMsg(receiveList, message, ChannelEnum.MSG);
     }
 
+
     /**
      * 获取时间列表
      */
@@ -164,6 +182,8 @@ public class PushServiceImpl implements PushService {
         }
         return dataList;
     }
+
+
 
     @Override
     public void pushBadger(Long receiveId, PushBadgerEnum badgerEnum, List<Long> principal) {
@@ -183,6 +203,32 @@ public class PushServiceImpl implements PushService {
         // 发送消息
         this.pushSetting(setting, Arrays.asList(receiveId));
     }
+
+    @Override
+    public void pushBadger(List<Long> receiveList, PushBadgerEnum badgerEnum, boolean principal) {
+        // 遍历所有接收者
+        for (Long receiveId : receiveList) {
+            // 为每个接收者单独组装计数器的Redis键
+            String redisKey = StrUtil.format(badgerEnum.getType(), receiveId);
+            Long count=0L;
+            // 集合判空
+            if (principal) {
+                // 核心修改：使用Redis的INCR命令实现数字自动+1（原子操作）
+                // 如果键不存在，会先初始化为0再+1，结果为1；如果已存在，直接+1
+                count=redisUtils.increment(redisKey,1,PushConstant.PUSH_TIME, TimeUnit.DAYS);
+            }
+            // 查询当前计数器的值（即最新的数字）
+            String value = count.toString();
+            String label = badgerEnum.getCode();
+
+            // 为当前接收者创建推送设置
+            PushSetting setting = new PushSetting(PushSettingEnum.BADGER, receiveId, label, value);
+
+            // 发送消息
+            this.pushSetting(setting, Arrays.asList(receiveId));
+        }
+    }
+
 
     /**
      * 发送消息
@@ -208,6 +254,30 @@ public class PushServiceImpl implements PushService {
     public List<JSONObject> pullMsg(Long userId, String lastId, int limit) {
         // 获取消息
         List<String> redisKeys = this.pullMsgId(userId, lastId, limit);
+        if (CollectionUtils.isEmpty(redisKeys)) {
+            return new ArrayList<>();
+        }
+        // 获取消息
+        List<String> dataList = redisOther.multiGet(redisKeys);
+        // 集合判空
+        if (CollectionUtils.isEmpty(dataList)) {
+            return new ArrayList<>();
+        }
+        // 消息转换
+        return dataList.stream().collect(ArrayList::new, (x, y) -> {
+            if (!StringUtils.isEmpty(y)) {
+                x.add(JSONUtil.parseObj(y));
+            }
+        }, ArrayList::addAll);
+    }
+
+    /**
+     * 拉取朋友圈消息
+     */
+    @Override
+    public List<JSONObject> pullMomentMsg(Long userId, String lastId, int limit) {
+        // 获取消息
+        List<String> redisKeys = this.pullMomentMsgId(userId, lastId, limit);
         if (CollectionUtils.isEmpty(redisKeys)) {
             return new ArrayList<>();
         }
@@ -253,6 +323,37 @@ public class PushServiceImpl implements PushService {
         // 组装消息
         return dataList.stream().collect(ArrayList::new, (x, msgId) -> {
             x.add(StrUtil.format(PushConstant.PUSH_MSG, msgId));
+        }, ArrayList::addAll);
+    }
+
+    /**
+     * 获取朋友圈消息keys
+     * eg:[push:moment:123456789]
+     */
+    private List<String> pullMomentMsgId(Long userId, String lastId, int limit) {
+        // 非空组装
+        if (StringUtils.isEmpty(lastId)) {
+            lastId = "0";
+        }
+        // 组装消息
+        String date = DateUtil.format(DateUtil.date(), DatePattern.PURE_DATE_PATTERN);
+        String redisKey = StrUtil.format(PushConstant.PUSH_USER_MOMENT, date, userId);
+        // 获取消息keys, eg: [1,2,3,4]
+        List<String> dataList = redisOther.lRange(redisKey);
+        if (CollectionUtils.isEmpty(dataList)) {
+            return new ArrayList<>();
+        }
+        // 增加数据
+        dataList.add(0, lastId);
+        // 数据排序
+        Collections.sort(dataList);
+        // 计算角标
+        Integer index = ListUtil.lastIndexOf(dataList, lastId::equals) + 1;
+        // 过滤数据
+        dataList = ListUtil.sub(dataList, index, index + limit);
+        // 组装消息
+        return dataList.stream().collect(ArrayList::new, (x, msgId) -> {
+            x.add(StrUtil.format(PushConstant.PUSH_MOMENT_MSG, msgId));
         }, ArrayList::addAll);
     }
 

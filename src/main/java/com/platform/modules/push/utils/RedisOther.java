@@ -53,6 +53,25 @@ public class RedisOther {
     }
 
     /**
+     * 存储朋友圈信息
+     */
+    public void pushMomentMsg(Long msgId, List<Long> receiveList, String message, List<String> dateList) {
+        // 聊天消息
+        this.set(StrUtil.format(PushConstant.PUSH_MOMENT_MSG, msgId), message, PushConstant.PUSH_MOMENT_TIME, TimeUnit.DAYS);
+        // 聊天集合
+        List<LabelVo> dataList = new ArrayList();
+        // 聊天群组
+        //dataList.add(new LabelVo(msgId.toString(), msgId));
+        // 聊天对象
+        receiveList.forEach(receiveId -> {
+            dateList.forEach(date -> {
+                dataList.add(new LabelVo(StrUtil.format(PushConstant.PUSH_USER_MOMENT, date, receiveId), msgId));
+            });
+        });
+        this.rightPush(dataList);
+    }
+
+    /**
      * 将值 value 关联到 key ，并将 key 的过期时间设为 timeout
      */
     public void set(String key, String value, long timeout, TimeUnit unit) {
