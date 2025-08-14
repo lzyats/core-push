@@ -140,6 +140,27 @@ public class PushServiceImpl implements PushService {
         this.sendMsg(receiveList, message, ChannelEnum.MSG);
     }
 
+    /**
+     * 存储异步消息不发送
+     * @param pushFrom
+     * @param pushMoment
+     * @param receiveList
+     * @param msgType
+     * @param onlysave
+     */
+    @Override
+    public void pushMomentSync(PushFrom pushFrom, PushMoment pushMoment, List<Long> receiveList,PushMomentEnum msgType,Boolean onlysave) {
+        // 消息组装
+        PushMomentSync messageSync = new PushMomentSync(pushFrom, pushMoment,msgType);
+        // 格式消息
+        String message = JSONUtil.toJsonStr(messageSync);
+        // 离线消息
+        // 异步执行
+        ThreadUtil.execAsync(() -> {
+            redisOther.pushMomentMsg(pushFrom.getSyncId(),  receiveList, message, _getDateList());
+        });
+    }
+
     @Override
     public void pushGroup(PushFrom pushFrom, PushGroup pushGroup, List<Long> receiveList, String
             content, PushMsgTypeEnum msgType) {
@@ -436,5 +457,136 @@ public class PushServiceImpl implements PushService {
             }
         });
     }
+
+
+    /**
+     * 根据接收者ID发送Redis中存储的朋友圈消息
+     * @param receiveId 接收者ID（单个接收者）
+     * @param lastId 最后一条消息ID（用于分页，空则发送所有）
+     * @param limit 发送数量限制（0则发送所有）
+     */
+    @Override
+    public void pushStoredMomentMsg(String receiveId, String lastId, int limit) {
+        // 参数校验
+        if (receiveId == null) {
+            log.warn("推送存储的朋友圈消息失败：接收者ID为空");
+            return;
+        }
+
+        // 1. 根据接收者ID获取消息ID列表
+        List<String> msgIdList = getMomentMsgIdsByReceiveId(receiveId, lastId, limit > 0 ? limit : Integer.MAX_VALUE);
+        if (CollectionUtils.isEmpty(msgIdList)) {
+            log.info("接收者[{}]无待发送的存储消息", receiveId);
+            return;
+        }
+
+        // 2. 批量获取消息内容
+        List<String> redisKeys = msgIdList.stream()
+                .map(msgId -> StrUtil.format(PushConstant.PUSH_MOMENT_MSG, msgId))
+                .collect(Collectors.toList());
+        List<String> messageList = redisOther.multiGet(redisKeys);
+
+        // 3. 发送消息（接收者列表为单个用户）
+        List<Long> singleReceiveList = Collections.singletonList(Long.parseLong(receiveId));
+        for (int i = 0; i < messageList.size(); i++) {
+            String message = messageList.get(i);
+            if (StringUtils.isEmpty(message)) {
+                continue;
+            }
+            // 发送消息并记录日志
+            this.sendMsg(singleReceiveList, message, ChannelEnum.MSG);
+            log.debug("已向接收者[{}]推送存储的朋友圈消息，消息ID:{}", receiveId, msgIdList.get(i));
+        }
+    }
+
+    /**
+     * 批量向多个接收者发送各自存储的朋友圈消息
+     * @param receiveIds 接收者ID列表
+     * @param limit 每个接收者的消息数量限制
+     */
+    @Override
+    public void pushStoredMomentMsg(List<String> receiveIds, int limit) {
+        if (CollectionUtils.isEmpty(receiveIds)) {
+            log.warn("推送存储的朋友圈消息失败：接收者列表为空");
+            return;
+        }
+
+        // 遍历所有接收者，分别发送其对应的消息
+        receiveIds.forEach(receiveId ->
+                pushStoredMomentMsg(receiveId, null, limit)
+        );
+    }
+
+
+
+    /**
+     * 根据接收者ID获取朋友圈消息ID列表（支持分页）
+     */
+    private List<String> getMomentMsgIdsByReceiveId(String receiveId, String lastId, int limit) {
+        // 1. 获取存储消息ID的日期列表（与存储时的日期逻辑一致，取未来5天）
+        List<String> dateList = _getDateList();
+
+        // 2. 构建接收者每天的消息ID列表Key（格式：push:user:moment:{date}:{receiveId}）
+        List<String> redisKeys = dateList.stream()
+                .map(date -> StrUtil.format(PushConstant.PUSH_USER_MOMENT, date, receiveId))
+                .collect(Collectors.toList());
+
+        // 3. 从Redis列表中获取消息ID（倒序取最新，支持分页）
+        List<String> allMsgIds = new ArrayList<>();
+        for (String key : redisKeys) {
+            // 获取列表所有元素（实际可根据Redis列表长度优化，避免全量查询）
+            List<String> msgIds = redisOther.lRange(key);
+            // 倒序排列（因为存储时用rightPush，最新的在尾部）
+            Collections.reverse(msgIds);
+            allMsgIds.addAll(msgIds);
+        }
+
+        // 4. 去重并按时间排序（消息ID通常为递增，直接排序即可）
+        List<String> uniqueMsgIds = allMsgIds.stream()
+                .distinct()
+                .sorted(Collections.reverseOrder()) // 最新的在前
+                .collect(Collectors.toList());
+
+        // 5. 处理分页（根据lastId定位起始位置）
+        int startIndex = 0;
+        if (StringUtils.hasText(lastId)) {
+            startIndex = uniqueMsgIds.indexOf(lastId);
+            if (startIndex == -1) {
+                startIndex = 0; // 未找到则从开头开始
+            } else {
+                startIndex++; // 从lastId的下一条开始
+            }
+        }
+
+        int endIndex = Math.min(startIndex + limit, uniqueMsgIds.size());
+        return uniqueMsgIds.subList(startIndex, endIndex);
+    }
+
+    @Override
+    public List<JSONObject> getStoredMomentMsgByReceiveId(String receiveId, String lastId, int limit) {
+        // 1. 获取接收者对应的消息ID列表（按日期分组存储）
+        List<String> msgIdList = this.getMomentMsgIdsByReceiveId(receiveId, lastId, limit);
+        if (CollectionUtils.isEmpty(msgIdList)) {
+            return new ArrayList<>();
+        }
+
+        // 2. 根据消息ID列表查询Redis中的消息内容
+        List<String> redisKeys = msgIdList.stream()
+                .map(msgId -> StrUtil.format(PushConstant.PUSH_MOMENT_MSG, msgId))
+                .collect(Collectors.toList());
+
+        List<String> messageList = redisOther.multiGet(redisKeys);
+        if (CollectionUtils.isEmpty(messageList)) {
+            return new ArrayList<>();
+        }
+
+        // 3. 转换为JSONObject并返回
+        return messageList.stream()
+                .filter(StringUtils::hasText)
+                .map(JSONUtil::parseObj)
+                .collect(Collectors.toList());
+    }
+
+
 
 }
