@@ -1,13 +1,9 @@
 package com.platform.modules.push.message;
 
-import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.NumberUtil;
-import cn.hutool.json.JSONObject;
-import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.platform.modules.push.dto.*;
 import com.platform.modules.push.enums.PushMomentEnum;
-import com.platform.modules.push.enums.PushMsgTypeEnum;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
@@ -31,8 +27,7 @@ public class PushMomentSync extends PushMessageBase {
                 .setMsgId(NumberUtil.toStr(msgId))
                 .setSyncId(NumberUtil.toStr(syncId))
                 .setType(type.getCode())
-                .setSource(new PushMsgSource(pushFrom))
-                .setCreateTime(NumberUtil.toStr(DateUtil.current()));
+                .setSource(new PushMsgSource(pushFrom));
         this.pushData = data;
         this.pushType = "moment";
     }
@@ -84,6 +79,9 @@ public class PushMomentSync extends PushMessageBase {
         /** 点赞列表，改为可选类型 */
         private List<String> likes;
 
+        /** 发布时间，改为可选类型 */
+        private Date createTime;
+
         /**
          * 类型
          */
@@ -94,10 +92,6 @@ public class PushMomentSync extends PushMessageBase {
          */
         private PushMsgSource source;
 
-        /**
-         * 创建时间
-         */
-        private String createTime;
 
         public PushMsgData(PushMoment pushSync) {
             this.momentId = pushSync.getMomentId();
@@ -110,6 +104,7 @@ public class PushMomentSync extends PushMessageBase {
             this.comments = pushSync.getComments();
             this.portrait = pushSync.getPortrait();
             this.nickname = pushSync.getNickname();
+            this.createTime = pushSync.getCreateTime();
         }
     }
 
