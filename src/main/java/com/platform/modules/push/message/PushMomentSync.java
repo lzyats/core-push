@@ -2,6 +2,7 @@ package com.platform.modules.push.message;
 
 import cn.hutool.core.util.NumberUtil;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import com.platform.common.enums.YesOrNoEnum;
 import com.platform.modules.push.dto.*;
 import com.platform.modules.push.enums.PushMomentEnum;
 import lombok.Data;
@@ -88,6 +89,11 @@ public class PushMomentSync extends PushMessageBase {
         private String type;
 
         /**
+         * 是否删除
+         */
+        private int isDeleted;
+
+        /**
          * 消息来源
          */
         private PushMsgSource source;
@@ -105,6 +111,7 @@ public class PushMomentSync extends PushMessageBase {
             this.portrait = pushSync.getPortrait();
             this.nickname = pushSync.getNickname();
             this.createTime = pushSync.getCreateTime();
+            this.isDeleted = pushSync.getIsDeleted();
         }
     }
 

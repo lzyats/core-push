@@ -2,6 +2,7 @@ package com.platform.modules.push.dto;
 
 import cn.hutool.core.util.NumberUtil;
 import cn.hutool.json.JSONObject;
+import com.platform.common.enums.YesOrNoEnum;
 import com.platform.modules.push.enums.PushMomentEnum;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -60,6 +61,11 @@ public class PushMoment {
      * 类型
      */
     private String type;
+
+    /**
+     * 是否删除
+     */
+    private int isDeleted=0;
     /**
     /**
      * 数据
